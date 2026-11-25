@@ -41,13 +41,13 @@
 
   /* header: clock + now, straight on the sky */
   #head{grid-area:head;display:flex;justify-content:space-between;align-items:flex-end;gap:12px;padding:0 6px 4px}
-  #time{font-size:clamp(80px,17vw,180px);font-weight:200;letter-spacing:-.045em;line-height:.9;font-variant-numeric:tabular-nums}
+  #time{font-size:clamp(92px,20vw,210px);font-weight:600;letter-spacing:-.02em;line-height:.9;font-variant-numeric:tabular-nums}
   #time .s{font-size:.28em;color:var(--dim);letter-spacing:0;margin-left:.12em}
   #date{font-size:clamp(18px,3.3vw,28px);color:var(--dim);margin-top:8px}
   #greet{font-size:clamp(15px,2.4vw,20px);color:var(--warm);margin-top:6px}
   #nowBox{text-align:right;cursor:pointer}
   #nowIcon{display:flex;justify-content:flex-end}
-  #nowTemp{font-size:clamp(56px,11vw,110px);font-weight:200;line-height:.95;letter-spacing:-.03em}
+  #nowTemp{font-size:clamp(64px,13vw,130px);font-weight:600;line-height:.95;letter-spacing:-.03em}
   #nowTxt{color:var(--dim);font-size:15px;margin-top:4px}
   #place{font-size:12px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);margin-top:6px}
   @media (orientation:landscape){#head{flex-direction:column;align-items:flex-start;justify-content:center}#nowBox{text-align:left;margin-top:18px}#nowIcon{justify-content:flex-start}}
@@ -175,12 +175,12 @@
   @media (orientation:landscape){
     #wrap{padding:var(--gap);grid-template-columns:1.05fr 1fr 1fr;grid-template-rows:auto auto auto minmax(0,1fr) auto;
       grid-template-areas:"head hourly hourly" "head wind fc" "adv wind fc" "notes wind fc" "dock dock dock"}
-    #time{font-size:min(12.5vh,110px)}
+    #time{font-size:min(15vh,136px)}
     #date{font-size:20px;margin-top:4px}
     #greet{font-size:16px;margin-top:2px}
     #head{flex-direction:column;align-items:flex-start;justify-content:flex-start;padding:0 4px}
     #nowBox{display:grid;grid-template-columns:auto auto;grid-template-areas:"ic tp" "tx tx" "pl pl";align-items:center;column-gap:12px;text-align:left;margin-top:10px}
-    #nowIcon{grid-area:ic}#nowTemp{grid-area:tp;font-size:min(8.5vh,68px)}#nowTxt{grid-area:tx}#place{grid-area:pl;margin-top:2px}
+    #nowIcon{grid-area:ic}#nowTemp{grid-area:tp;font-size:min(11vh,90px)}#nowTxt{grid-area:tx}#place{grid-area:pl;margin-top:2px}
     #nowIcon svg{width:48px;height:48px}
     #nowBox{margin-top:6px}
     #adv{align-items:flex-start;min-height:0}
@@ -213,7 +213,7 @@
   }
   @media (max-height:500px) and (orientation:landscape){
     #wrap{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"head adv" "hourly hourly" "wind fc" "notes notes" "dock dock"}
-    #time{font-size:72px}
+    #time{font-size:84px}
     #compass{width:150px;height:150px}
   }
 
@@ -685,7 +685,8 @@ const PTS=['N','NNE','NE','ENE','E','ESE','SE','SSE','S','SSW','SW','WSW','W','W
 const beau=k=>k<1?'Calm':k<6?'Light air':k<12?'Light breeze':k<20?'Gentle breeze':k<29?'Moderate breeze':k<39?'Fresh breeze':k<50?'Strong breeze':k<62?'Near gale':k<75?'Gale':k<89?'Strong gale':'Storm-force';
 let windDir=0,windWob=1;
 /* wind streamers: five ribbons tied to the compass centre, blowing the way the wind goes.
-   Length shows strength. Stronger wind = longer, tighter, faster flutter. Calm = short ribbons that drift.
+   Length shows strength. Stronger wind = longer, tighter, faster flutter, and ribbons stay up longer.
+   Light air = ribbons float up now and then, one at a time, and settle down again.
    Gusts use the same timing as the sky, so ribbons surge when the clouds and streaks do.
    When the Wind panel is folded, a large set is drawn in the middle of the screen. */
 const STR_COLS=['#ff8a5c','#ffd27a','#f4f6fa','#ff6f61','#ffe3a3'];
@@ -705,18 +706,23 @@ function drawStreamers(c,R,t,kmh,label){
   x.strokeStyle='rgba(255,255,255,.75)';x.lineWidth=Math.max(1.5,R*.03);x.lineCap='round';
   x.beginPath();x.moveTo(cx-bx*R*.42,cy-by*R*.42);x.lineTo(cx+bx*R*.42,cy+by*R*.42);x.stroke();
   for(const s of strms){
-    const a=a0+s.off*.35*(1-f)+Math.sin(t*.7+s.ph)*.22*(1-f);   // calm: ribbons wander a little
+    const e=s.e||0;                                              // 0 = settled, 1 = up in the wind
+    const a=a0+(s.off*.35+Math.sin(t*.7+s.ph)*.22)*(1-f*e)       // light air: ribbons wander a little
+      +(1-e)*.6*Math.sin(t*.3+s.ph*3);                           // a settled ribbon lies where it falls
     const ox=cx+bx*R*s.off*1.4,oy=cy+by*R*s.off*1.4;             // own tie point on the bar
-    const L=R*(.6+1.0*f)*s.lk*(1+.07*Math.sin(t*2.3+s.ph));
+    // seen from above, a settled ribbon hangs down, so it looks short
+    const L=R*s.lk*(.32+(.28+1.0*f)*e)*(1+.07*e*Math.sin(t*2.3+s.ph));
     // the ribbon is built from its bend angle, segment by segment, so its length never stretches.
     // Two travelling waves (a long slow one and a short fast one) grow toward the tail, which whips;
     // calm air = big lazy curls, strong wind = tight fast ripples.
-    const A1=.22+.6*(1-f),A2=A1*.45,w1=2.4+9*f,w2=w1*1.9,k1=2*Math.PI*1.15,k2=2*Math.PI*2.6;
+    // the wave phases (s.p1, s.p2) are added up frame by frame in stepStreamers, so a change in
+    // speed changes the flutter smoothly instead of making the ribbon jump
+    const A1=.22+.6*(1-f),A2=A1*.45,k1=2*Math.PI*1.15,k2=2*Math.PI*2.6;
     const tug=.12*(1-f)*Math.sin(t*.9+s.ph*2)+.06*Math.sin(t*3.1+s.ph);   // slow random swing at the root
     const N=26,seg=L/N,W0=R*.11,P=[{x:ox,y:oy,tw:1,u:0}];
     let qx=ox,qy=oy;
     for(let i=1;i<=N;i++){
-      const u=i/N,p1=k1*u-w1*t+s.ph,p2=k2*u-w2*t+s.ph*1.7;
+      const u=i/N,p1=k1*u-(s.p1||0)+s.ph,p2=k2*u-(s.p2||0)+s.ph*1.7;
       const th=a+tug*(1-u)+A1*Math.pow(u,1.15)*Math.sin(p1)+A2*Math.pow(u,1.6)*Math.sin(p2);
       qx+=Math.sin(th)*seg;qy-=Math.cos(th)*seg;
       P.push({x:qx,y:qy,tw:Math.abs(Math.cos(p1*.5+p2*.25)),u});
@@ -728,7 +734,7 @@ function drawStreamers(c,R,t,kmh,label){
       const ex=dx/l*.6,ey=dy/l*.6;                                              // small overlap hides seams
       x.beginPath();x.moveTo(p.x+nx*wa-ex,p.y+ny*wa-ey);x.lineTo(q.x+nx*wb+ex,q.y+ny*wb+ey);
       x.lineTo(q.x-nx*wb+ex,q.y-ny*wb+ey);x.lineTo(p.x-nx*wa-ex,p.y-ny*wa-ey);x.closePath();
-      x.globalAlpha=(1-.5*p.u)*(.5+.5*p.tw);x.fill();
+      x.globalAlpha=(1-.5*p.u)*(.5+.5*p.tw)*(.65+.35*e);x.fill();
     }
   }
   x.globalAlpha=1;x.fillStyle='#fff';x.beginPath();x.arc(cx,cy,Math.max(2,R*.045),0,7);x.fill();
@@ -743,11 +749,33 @@ function drawStreamers(c,R,t,kmh,label){
   }
 }
 let windLabel=null;
+/* Each ribbon floats up and settles down on its own time, not all together.
+   upShare = the part of the time a ribbon is up: none below 5 km/h, about half at 24 km/h (15 mph),
+   always up from 40 km/h (25 mph). Stronger wind = longer up, shorter down. */
+function upShare(kmh){return Math.pow(clamp((kmh-5)/35,0,1),.8)}
+function stepStreamers(dt,t,kmh){
+  const f=Math.pow(clamp(kmh/55,0,1),.75),sh=upShare(kmh);
+  const w1=.8+7*Math.pow(f,1.5);                        // flutter speed: slow in light air, fast in a gale
+  // average seconds up grows with the wind; average seconds down keeps the share right,
+  // so in light air a ribbon lifts only now and then
+  const Tu=1.5+10*sh,Td=sh>0?Tu*(1-sh)/sh:60;
+  for(const s of strms){
+    if(s.until===undefined){s.up=Math.random()<sh;s.e=s.up?1:0;s.p1=s.p2=0;s.until=t+Math.random()*Math.min(Td,8)}
+    if(t>=s.until){
+      s.up=sh>.97?true:sh<.03?false:!s.up;
+      s.until=t+Math.max(1.5,(s.up?Tu:Td)*(.5+Math.random()));
+    }
+    s.e+=((s.up?1:0)-s.e)*Math.min(1,dt*(s.up?1.8:.8));   // rises quickly, settles slowly
+    const sp=w1*(.35+.65*s.e);                            // a settled ribbon barely moves
+    s.p1+=sp*dt;s.p2+=sp*1.9*dt;
+  }
+}
 function streamers(dt,t){
   const target=((tgt.dir+180)%360+360)%360;
   if(sDir===null)sDir=target;
   sDir=(sDir+(((target-sDir)%360+540)%360-180)*Math.min(1,dt*1.5)+360)%360;   // turn the short way
   const kmh=cur.wind*(1+(cur.gust-1)*Math.max(0,Math.sin(t*.55)+.5*Math.sin(t*1.9))*.7);
+  stepStreamers(dt,t,kmh);
   if(document.body.classList.contains('windFolded')){const c=$('#bigStrm');drawStreamers(c,c.clientWidth*.27,t,kmh,true)}
   else{const c=$('#strm');if(c.clientWidth)drawStreamers(c,c.clientWidth/2*.45,t,kmh)}
 }
@@ -1056,7 +1084,7 @@ setInterval(startLightMeter,3600000);
    BUILD changes with each release (stamp.py writes it here and in sw.js).
    Offline support and the update bar only work when the page comes from a web address, not from
    a file, so on the wall tablet the adb push is the update and only the "What's new" box shows. */
-const BUILD='20261125-200518';
+const BUILD='20261125-201519';
 const APP='homeWallDisplay';
 /* phones scroll: keep the tray's height free at the end of the page while the bar or box shows */
 new ResizeObserver(()=>{

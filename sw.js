@@ -7,7 +7,7 @@
    Never call skipWaiting() on install: that would swap the version in the middle of the user's work.
    Weather and other data requests are not kept here; the page handles those.
    stamp.py sets BUILD before each release. */
-const BUILD='20261125-200518';
+const BUILD='20261125-201519';
 const CACHE='wd-'+BUILD;
 const FILES=['./','./index.html','./release-notes.js','./whatsnew.js','./manifest.webmanifest','./icon-192.png','./icon-512.png','./apple-touch-icon.png'];
 

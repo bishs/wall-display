@@ -11,6 +11,15 @@
             can do now, and where in the app. */
 var RELEASE_NOTES = [
   {
+    id: '2026-11-25-b',
+    date: '2026-11-25',
+    title: 'Easier to read, calmer wind',
+    items: [
+      { kind: 'changed', text: 'The clock and the temperature are larger and bold, so you can read them from across the room.' },
+      { kind: 'changed', text: 'The wind streamers now match the wind. In light air they lift one at a time and settle down again. The stronger the wind, the longer they stay up. From about 25 mph they stay up.' }
+    ]
+  },
+  {
     id: '2026-11-25',
     date: '2026-11-25',
     title: 'Updates when you want them',
