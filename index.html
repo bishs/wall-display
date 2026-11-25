@@ -178,6 +178,24 @@
     #dock .app .ico{width:44px;height:44px;font-size:22px;border-radius:13px}
   }
 
+  /* phones: the page scrolls, and panels take the height they need instead of sharing one screen */
+  @media (max-width:600px),(max-height:500px){
+    html,body{height:auto;min-height:100%}
+    body{overflow-x:hidden;overflow-y:auto}
+    #wrap{height:auto;min-height:100%;grid-template-rows:none}
+    #notes{max-height:none;min-height:0}
+    #dock{grid-auto-flow:row;grid-template-columns:repeat(auto-fill,minmax(64px,1fr))}
+    #dock .app{flex-direction:column;gap:7px;font-size:12.5px}
+  }
+  @media (max-width:600px){
+    #wrap{grid-template-columns:minmax(0,1fr);grid-template-areas:"head" "adv" "hourly" "wind" "fc" "notes" "dock"}
+  }
+  @media (max-height:500px) and (orientation:landscape){
+    #wrap{grid-template-columns:minmax(0,1fr) minmax(0,1fr);grid-template-areas:"head adv" "hourly hourly" "wind fc" "notes notes" "dock dock"}
+    #time{font-size:72px}
+    #compass{width:150px;height:150px}
+  }
+
   /* panels: fold button, folded state, press-and-hold drag */
   #wrap{user-select:none;-webkit-user-select:none;-webkit-touch-callout:none}
   #wrap input{user-select:text;-webkit-user-select:text}
@@ -279,6 +297,8 @@
     <label for="nDim">Night dimming: <b id="nDimV"></b></label>
     <input id="nDim" type="range" min="0" max="90" step="5" style="padding:0;accent-color:#9fd8ff">
     <div class="hint">Drag to preview. 0% = no dimming, 90% = almost dark.</div>
+    <div id="lmRow"><label style="display:flex;align-items:center;gap:10px;color:#eef2f6;font-size:14px"><input id="useLM" type="checkbox" style="width:auto;accent-color:#9fd8ff"> Use the Light Meter app</label>
+    <div class="hint">Turn this on only on the Android device that has the Light Meter app. It sets the screen brightness with the camera, and gets the Night mode times from here.</div></div>
     <label>Panels</label>
     <button class="btn" id="resetLayout" type="button">Reset panel layout</button>
     <div class="hint">Tap ▾ on a panel to fold it. Hold a panel for a moment, then drag it onto another panel to swap them.</div>
@@ -312,6 +332,8 @@ const DEF={city:null,clock:'24',units:'c',nStart:'22:00',nEnd:'07:00',nDim:55,no
 const KEY='homeWallDisplay.v1';
 let S=Object.assign({},DEF,JSON.parse(localStorage.getItem(KEY)||localStorage.getItem('wd')||'{}'));
 const save=()=>localStorage.setItem(KEY,JSON.stringify(S));
+/* Light Meter: on by default only on the wall tablet, where the page opens from a file in Fully */
+if(S.useLM===undefined)S.useLM=location.protocol==='file:';
 const pad=n=>String(n).padStart(2,'0');
 const clamp=(v,a,b)=>Math.max(a,Math.min(b,v));
 const lerp=(a,b,t)=>a+(b-a)*t;
@@ -876,7 +898,7 @@ $('#add').onsubmit=e=>{e.preventDefault();const v=$('#newNote').value.trim();if(
 
 /* ================= settings ================= */
 let pick=null,tmr;
-function openSet(){drawAppList();$('#appMsg').textContent='App changes show at once. Up to 9 apps.';pick=S.city;$('#city').value='';$('#cityRes').innerHTML='';
+function openSet(){drawAppList();$('#useLM').checked=!!S.useLM;$('#lmRow').style.display=APPLE?'none':'';$('#appMsg').textContent='App changes show at once. Up to 9 apps.';pick=S.city;$('#city').value='';$('#cityRes').innerHTML='';
   $('#nDim').value=S.nDim;dimLabel();
   $('#cityNow').textContent=S.city?'Current: '+S.city.name:'No city set yet';
   $('#clockFmt').value=S.clock;$('#units').value=S.units;$('#nStart').value=S.nStart;$('#nEnd').value=S.nEnd;$('#set').classList.add('open')}
@@ -895,7 +917,7 @@ $('#city').oninput=()=>{clearTimeout(tmr);const q=$('#city').value.trim();if(q.l
       d.onclick=()=>{pick={name:c.name,lat:c.latitude,lon:c.longitude};$('#cityNow').textContent='Selected: '+d.textContent;$('#cityRes').innerHTML=''};
       $('#cityRes').appendChild(d)})}catch(e){$('#cityRes').textContent='Search needs internet'}},350)};
 $('#save').onclick=()=>{S.city=pick;S.clock=$('#clockFmt').value;S.units=$('#units').value;S.nStart=$('#nStart').value||DEF.nStart;S.nEnd=$('#nEnd').value||DEF.nEnd;
-  S.nDim=+$('#nDim').value;setDim(S.nDim);endPreview();
+  S.nDim=+$('#nDim').value;setDim(S.nDim);endPreview();S.useLM=$('#useLM').checked;
   save();$('#set').classList.remove('open');tick();weather();startLightMeter()};
 
 /* ================= app tiles =================
@@ -994,7 +1016,7 @@ if(Q.get('fps'))$('#fps').style.display='block';
    Starts the helper (it reads room light with the camera and sets the real backlight).
    Runs 4 s after the page opens, then hourly while the display is visible. Harmless if it is already running. */
 function startLightMeter(){
-  if(APPLE||Q.get('demo')||document.visibilityState!=='visible')return;
+  if(!S.useLM||APPLE||Q.get('demo')||document.visibilityState!=='visible')return;
   // the sleep time goes with the link, so it is set in one place only (here)
   location.href=`intent://start?from=${S.nStart}&to=${S.nEnd}#Intent;scheme=lightmeter;package=com.home.lightmeter;end`;
 }
