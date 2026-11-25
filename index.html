@@ -151,6 +151,25 @@
   .foot{display:flex;justify-content:flex-end;gap:10px;margin-top:20px}
   .hint{font-size:12px;color:#9aa6b6;margin-top:6px}
   .acc{background:#9fd8ff!important;color:#001!important;font-weight:600}
+  /* update bar and "What's new" box: at the bottom, above the panels and the dock, but under the
+     night dimmer, the 3:00 colour refresh and Settings. They never cover the page. */
+  #tray{position:fixed;left:50%;bottom:calc(10px + env(safe-area-inset-bottom));transform:translateX(-50%);z-index:7;
+    width:min(94vw,560px);display:flex;flex-direction:column;gap:8px;pointer-events:none;text-shadow:none}
+  #tray>*{pointer-events:auto;background:rgba(16,22,34,.94);color:#eef2f6;border:1px solid #2a3442;border-radius:16px;
+    box-shadow:0 8px 30px rgba(0,0,0,.45)}
+  #tray>[hidden]{display:none}
+  #upBar{display:flex;align-items:center;gap:12px;padding:10px 10px 10px 16px;font-size:14px}
+  #upBar span{flex:1}
+  #news{padding:14px 16px 12px}
+  #news h3{font-size:16px;margin-bottom:6px}
+  #newsBody{max-height:50vh;overflow-y:auto;font-size:14px}
+  #newsBody h4{font-size:14px;margin:8px 0 4px;display:flex;justify-content:space-between;gap:10px}
+  #newsBody h4 small{color:#9aa6b6;font-weight:400}
+  #newsBody li{list-style:none;display:flex;gap:8px;align-items:baseline;margin:4px 0}
+  #newsBody ul{padding:0}
+  #newsBody .k{flex:none;font-size:11px;font-weight:700;text-transform:uppercase;letter-spacing:.04em;padding:1px 7px;border-radius:6px;border:1px solid}
+  .k.added{color:#7ee2a8}.k.changed{color:#ffd58a}.k.removed{color:#ff9b9b}
+  #news .foot{margin-top:10px}
   #fps{position:fixed;left:8px;bottom:8px;z-index:20;font:12px monospace;background:rgba(0,0,0,.5);padding:2px 6px;border-radius:4px;display:none}
   /* landscape: left column = clock, now, advisories, notes; right = hourly on top, wind + 5-day below */
   @media (orientation:landscape){
@@ -183,6 +202,8 @@
     html,body{height:auto;min-height:100%}
     body{overflow-x:hidden;overflow-y:auto}
     #wrap{height:auto;min-height:100%;grid-template-rows:none}
+    /* room at the end of the page, so the update bar or "What's new" box never hides the dock */
+    body.tray #wrap{padding-bottom:calc(var(--gap) + var(--trayH,0px))}
     #notes{max-height:none;min-height:0}
     #dock{grid-auto-flow:row;grid-template-columns:repeat(auto-fill,minmax(64px,1fr))}
     #dock .app{flex-direction:column;gap:7px;font-size:12.5px}
@@ -322,7 +343,15 @@
   </div>
 </div>
 <div id="fps"></div>
+<div id="tray">
+  <div id="news" data-tour-wait hidden><h3 id="newsT"></h3><div id="newsBody"></div>
+    <div class="foot"><button class="btn acc" id="newsOk">Got it</button></div></div>
+  <div id="upBar" role="status" hidden><span>A new version is ready. Update when you reach a good stopping point.</span>
+    <button class="btn acc" id="upGo">Update</button></div>
+</div>
 
+<script src="release-notes.js"></script>
+<script src="whatsnew.js"></script>
 <script>
 const $=s=>document.querySelector(s);
 const Q=new URLSearchParams(location.search);
@@ -1023,8 +1052,98 @@ function startLightMeter(){
 setTimeout(startLightMeter,4000);
 setInterval(startLightMeter,3600000);
 
-/* offline support: only works when the page comes from a web address, not from a file */
-if('serviceWorker' in navigator&&location.protocol.startsWith('http'))navigator.serviceWorker.register('sw.js').catch(()=>{});
+/* ---- updates ----
+   BUILD changes with each release (stamp.py writes it here and in sw.js).
+   Offline support and the update bar only work when the page comes from a web address, not from
+   a file, so on the wall tablet the adb push is the update and only the "What's new" box shows. */
+const BUILD='20261125-200518';
+const APP='homeWallDisplay';
+/* phones scroll: keep the tray's height free at the end of the page while the bar or box shows */
+new ResizeObserver(()=>{
+  const h=$('#tray').offsetHeight;
+  document.body.classList.toggle('tray',h>0);
+  document.documentElement.style.setProperty('--trayH',(h+10)+'px');
+}).observe($('#tray'));
+let upReg=null,upAsked=false;
+/* hide the bar while a reload could lose work: Settings open (unsaved), typing or editing a note, a panel drag */
+function upBusy(){
+  const a=document.activeElement;
+  return $('#set').classList.contains('open')||!!document.querySelector('#wrap>section.dragging')||
+    !!(a&&/^(INPUT|TEXTAREA|SELECT)$/.test(a.tagName));
+}
+function upSync(){
+  const waiting=!!(upReg&&upReg.waiting&&navigator.serviceWorker.controller);
+  $('#upBar').hidden=!waiting||upBusy();
+}
+if('serviceWorker' in navigator&&location.protocol.startsWith('http')){
+  navigator.serviceWorker.register('sw.js').then(reg=>{
+    upReg=reg;upSync();
+    reg.addEventListener('updatefound',()=>{
+      const w=reg.installing;
+      if(w)w.addEventListener('statechange',()=>{if(w.state==='installed')upSync()});
+    });
+    // look for a new version every 30 minutes; the check fails quietly when the device is offline
+    setInterval(()=>reg.update().catch(()=>{}),30*60000);
+  }).catch(()=>{});
+  // reload once, and only after the user tapped Update (the first install also changes the controller)
+  navigator.serviceWorker.addEventListener('controllerchange',()=>{if(upAsked){upAsked=false;location.reload()}});
+  setInterval(upSync,1000);
+  document.addEventListener('focusin',upSync);
+  document.addEventListener('focusout',()=>setTimeout(upSync,0));
+}
+$('#upGo').onclick=()=>{
+  if(!upReg||!upReg.waiting)return;
+  upAsked=true;upReg.waiting.postMessage({type:'SKIP_WAITING'});
+};
+
+/* "What's new" after an update, shown once. No sign-in, so one set of keys for each device.
+   If storage is blocked, show nothing: the device could not remember Got it, so the box would
+   open on every start. */
+function getKey(k){try{return localStorage.getItem(APP+'.'+k)}catch(e){return null}}
+function setKey(k,v){try{localStorage.setItem(APP+'.'+k,v);return true}catch(e){return false}}
+function storageWorks(){try{localStorage.setItem(APP+'.probe','1');localStorage.removeItem(APP+'.probe');return true}catch(e){return false}}
+function whatsNew(){
+  if(!storageWorks())return;
+  const notes=typeof RELEASE_NOTES!=='undefined'?RELEASE_NOTES:[];
+  const newest=notes.length?notes[0].id:'';
+  const lastBuild=getKey('build'),seen=getKey('seenRelease');
+  let first=false;
+  // no sign-in means no sign-up date: on the first start, mark every note as seen and show nothing
+  if(seen===null){setKey('seenRelease',newest);first=true}
+  if(lastBuild===null){setKey('build',BUILD);first=true}
+  if(first)return;
+  const list=unseenReleases(notes,seen,null);
+  const box=$('#news'),body=$('#newsBody');
+  body.textContent='';
+  if(list.length){
+    $('#newsT').textContent='What’s new';
+    for(const r of list){
+      const h=document.createElement('h4'),d=document.createElement('small');
+      h.textContent=r.title;
+      d.textContent=new Date(r.date+'T12:00:00').toLocaleDateString([],{month:'short',day:'numeric'});
+      h.append(d);
+      const ul=document.createElement('ul');
+      for(const it of r.items){
+        const li=document.createElement('li'),k=document.createElement('span'),t=document.createElement('span');
+        k.className='k '+it.kind;k.textContent=it.kind;t.textContent=it.text;
+        li.append(k,t);ul.append(li);
+      }
+      body.append(h,ul);
+    }
+  }else if(quietUpdate(lastBuild,BUILD,false)){
+    $('#newsT').textContent='App updated';
+    const p=document.createElement('p');
+    p.textContent='This update made improvements behind the scenes. Nothing changes in how you use the app.';
+    body.append(p);
+  }else return;
+  box.hidden=false;
+  $('#newsOk').onclick=()=>{
+    if(list.length)setKey('seenRelease',newest);
+    setKey('build',BUILD);
+    box.hidden=true;
+  };
+}
+whatsNew();
 
 wake();tick();morningClean();drawNotes();weather();
 </script>
